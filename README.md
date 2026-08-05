@@ -19,25 +19,7 @@ An external Discord bot for florr3d that receives game notifications (spawn, kil
 
 ## Server Setup
 
-### 1. Configure External API Access
-
-On your server, edit the `.env` file:
-
-```bash
-# Add your external bot tokens (comma-separated)
-EXTERNAL_BOT_TOKENS=your_external_token_here
-```
-
-### 2. Restart the Server
-
-```bash
-# If using PM2
-pm2 restart florr3d
-
-# Or if running directly
-# Stop and restart the server
-npm run server
-```
+No server configuration required. The external API is now publicly accessible for game event polling.
 
 ## Bot Setup
 
@@ -60,7 +42,6 @@ Edit `.env`:
 
 ```env
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
-EXTERNAL_API_TOKEN=your_external_api_token_here
 SERVER_URL=https://3dflorrr.duckdns.org
 NOTIFICATION_CHANNEL_ID=1528927946801152030
 ```
@@ -116,8 +97,7 @@ The bot only processes:
 Fetch new game events since the specified index.
 
 ```bash
-curl https://3dflorrr.duckdns.org/api/external/events?since_index=0 \
-  -H "Authorization: Bearer YOUR_TOKEN"
+curl https://3dflorrr.duckdns.org/api/external/events?since_index=0
 ```
 
 Response:
@@ -137,8 +117,7 @@ Response:
 Get game configuration (rarities and petal types).
 
 ```bash
-curl https://3dflorrr.duckdns.org/api/external/config \
-  -H "Authorization: Bearer YOUR_TOKEN"
+curl https://3dflorrr.duckdns.org/api/external/config
 ```
 
 ## Configuration
@@ -146,7 +125,6 @@ curl https://3dflorrr.duckdns.org/api/external/config \
 ### Environment Variables
 
 - `DISCORD_BOT_TOKEN`: Your Discord bot token
-- `EXTERNAL_API_TOKEN`: API token for server authentication
 - `SERVER_URL`: Game server URL (default: https://3dflorrr.duckdns.org)
 - `NOTIFICATION_CHANNEL_ID`: Discord channel ID for notifications
 
@@ -189,9 +167,8 @@ Since you already use Oracle Cloud for the game server:
 ## Troubleshooting
 
 ### Bot not receiving events
-- Verify `EXTERNAL_API_TOKEN` is correct
 - Check server URL is accessible
-- Ensure server has `EXTERNAL_BOT_TOKENS` configured
+- Verify server is running and has event system
 - Check bot console for API errors
 
 ### Duplicate notifications

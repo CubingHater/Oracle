@@ -7,7 +7,6 @@ dotenv.config();
 const CONFIG = {
   DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
   SERVER_URL: process.env.SERVER_URL || 'https://3dflorrr.duckdns.org',
-  EXTERNAL_API_TOKEN: process.env.EXTERNAL_API_TOKEN,
   NOTIFICATION_CHANNEL_ID: process.env.NOTIFICATION_CHANNEL_ID || '1528927946801152030',
   POLL_INTERVAL_MS: 5000 // Poll every 5 seconds
 };
@@ -29,7 +28,6 @@ async function sendApiRequest(endpoint, method = 'GET', body = null) {
   const options = {
     method,
     headers: {
-      'Authorization': `Bearer ${CONFIG.EXTERNAL_API_TOKEN}`,
       'Content-Type': 'application/json'
     }
   };
