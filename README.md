@@ -1,20 +1,21 @@
 # Florr3D External Discord Bot
 
-An external Discord bot for florr3d with notification system and giveaway functionality.
+An external Discord bot for florr3d that receives game notifications (spawn, kill, drop messages) and displays them in Discord.
 
 ## Features
 
-- **Game Notifications**: Send spawn, kill, and drop notifications to Discord (same as built-in bot)
-- **Giveaway System**: Run giveaways with random rarity and petal selection
-- **Discord Login Verification**: Only users logged in to 3dflorrr.duckdns.org can enter giveaways
-- **Automatic Petal Awarding**: Winners automatically receive their prize in-game
-- **REST API Integration**: Connect external bots to the game server
+- **Game Notifications**: Receives spawn, kill, and drop notifications from the game server
+- **Real-time Polling**: Polls the game server every 5 seconds for new events
+- **Rarity-based Colors**: Messages use the same colors as in the game
+- **Event Filtering**: Only processes toast events with rarity information
+- **Event Categorization**: Automatically categorizes events (spawn, kill, drop)
 
 ## Prerequisites
 
 - Node.js 18+ installed
 - Discord Bot Token from [Discord Developer Portal](https://discord.com/developers/applications)
 - Access to the florr3d server (3dflorrr.duckdns.org)
+- External API token from the server configuration
 
 ## Server Setup
 
@@ -24,7 +25,7 @@ On your server, edit the `.env` file:
 
 ```bash
 # Add your external bot tokens (comma-separated)
-EXTERNAL_BOT_TOKENS=your_external_token_here,another_token_here
+EXTERNAL_BOT_TOKENS=your_external_token_here
 ```
 
 ### 2. Restart the Server
@@ -43,7 +44,7 @@ npm run server
 ### 1. Install Dependencies
 
 ```bash
-cd external-discord-bot
+cd C:\Users\david\Desktop\external-discord-bot
 npm install
 ```
 
@@ -61,10 +62,7 @@ Edit `.env`:
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
 EXTERNAL_API_TOKEN=your_external_api_token_here
 SERVER_URL=https://3dflorrr.duckdns.org
-GUILD_ID=1525831377725952150
-GIVEAWAY_CHANNEL_ID=1527013645723369664
 NOTIFICATION_CHANNEL_ID=1528927946801152030
-ALLOWED_USER_ID=1453329316833398819
 ```
 
 ### 3. Configure Discord Bot
@@ -77,11 +75,10 @@ ALLOWED_USER_ID=1453329316833398819
 4. Go to "OAuth2" → "URL Generator"
 5. Select scopes:
    - `bot`
-   - `applications.commands`
 6. Select bot permissions:
    - Send Messages
    - Embed Links
-   - Use Slash Commands
+   - Read Message History
 7. Generate URL and invite bot to your server
 
 ### 4. Start the Bot
@@ -90,82 +87,53 @@ ALLOWED_USER_ID=1453329316833398819
 npm start
 ```
 
-## Usage
+## How It Works
 
-### Slash Commands
+### Polling Mechanism
 
-#### `/giveaway <duration> [rarity] [petal]`
-**Restricted**: Only the user specified in `ALLOWED_USER_ID` can use this command.
-Start a giveaway with specified duration in minutes.
+The bot polls the game server every 5 seconds using the REST API:
 
-- `duration` (required): Duration in minutes
-- `rarity` (optional): Specific rarity (Common-Ultra for random giveaways, Special only gives blood sacrifice)
-- `petal` (optional): Specific petal type
+1. **GET `/api/external/events?since_index=X`** - Fetches new events since last poll
+2. **Event Processing** - Filters for toast events with rarity information
+3. **Discord Display** - Sends formatted embeds to the notification channel
 
-**Giveaway Rules:**
-- Random giveaways only select from Common to Ultra rarities
-- Special rarity always gives blood sacrifice
-- Blood sacrifice only appears in Special rarity
+### Event Types Processed
 
-Examples:
-```
-/giveaway 60
-/giveaway 30 Ultra
-/giveaway 45 Special
-```
+- **Spawn Messages**: "A Ultra Ladybug has spawned somewhere"
+- **Kill Messages**: "A Ultra Rock has been defeated by PlayerName"
+- **Drop Messages**: "A Ultra iris has been found by PlayerName"
 
-#### `/notify-spawn <mob> <rarity>`
-Send a spawn notification to the game.
+### Event Filtering
 
-#### `/notify-kill <mob> <rarity> <player>`
-Send a kill notification to the game.
+The bot only processes:
+- Toast events (global game messages)
+- Events containing rarity names (Common through Eternal)
+- Events with color information for embed styling
 
-#### `/notify-drop <petal> <rarity> <player>`
-Send a drop notification to the game.
+## REST API Endpoints
 
-### Giveaway System
-
-1. **Start Giveaway**: Use `/giveaway` command
-2. **Random Selection**: System automatically selects random rarity (Common-Ultra) and petal
-3. **Special Rarity**: Special rarity always gives blood sacrifice only
-4. **Enter Giveaway**: Users click "Enter Giveaway" button
-5. **Verification**: System checks if user is logged in to 3dflorrr.duckdns.org with Discord
-6. **Winner Selection**: Random winner picked when time expires
-7. **Prize Awarding**: Petal automatically added to winner's inventory
-
-### REST API Endpoints
-
-External bots can connect to the server using these endpoints:
-
-#### POST `/api/external/message`
-Send a toast message to all players.
+### GET `/api/external/events?since_index=<index>`
+Fetch new game events since the specified index.
 
 ```bash
-curl -X POST https://3dflorrr.duckdns.org/api/external/message \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"type": "toast", "data": {"text": "Your message here"}}'
-```
-
-#### GET `/api/external/verify-discord?discord_id=<id>`
-Verify if a Discord user is logged in to the game.
-
-```bash
-curl https://3dflorrr.duckdns.org/api/external/verify-discord?discord_id=123456789 \
+curl https://3dflorrr.duckdns.org/api/external/events?since_index=0 \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-#### POST `/api/external/award-petal`
-Award a petal to a user's inventory.
-
-```bash
-curl -X POST https://3dflorrr.duckdns.org/api/external/award-petal \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"discord_id": "123456789", "petal_type": "basic", "rarity": 0}'
+Response:
+```json
+{
+  "events": [
+    {
+      "e": "toast",
+      "text": "A Ultra Ladybug has spawned somewhere"
+    }
+  ],
+  "currentIndex": 42
+}
 ```
 
-#### GET `/api/external/config`
+### GET `/api/external/config`
 Get game configuration (rarities and petal types).
 
 ```bash
@@ -173,39 +141,78 @@ curl https://3dflorrr.duckdns.org/api/external/config \
   -H "Authorization: Bearer YOUR_TOKEN"
 ```
 
-## Bot Permissions
+## Configuration
 
-The bot requires the following Discord permissions:
-- Send Messages
-- Embed Links
-- Use Slash Commands
-- Read Message History
-- Add Reactions
+### Environment Variables
+
+- `DISCORD_BOT_TOKEN`: Your Discord bot token
+- `EXTERNAL_API_TOKEN`: API token for server authentication
+- `SERVER_URL`: Game server URL (default: https://3dflorrr.duckdns.org)
+- `NOTIFICATION_CHANNEL_ID`: Discord channel ID for notifications
+
+### Polling Settings
+
+- **Poll Interval**: 5 seconds (can be adjusted in bot.js)
+- **Event Index Tracking**: Prevents duplicate notifications
+- **Automatic Reconnection**: Bot reconnects if server restarts
+
+## Hosting
+
+### Free Options
+
+1. **Oracle Cloud Free Tier** (Recommended)
+   - 24/7 uptime without sleep mode
+   - Already hosting your game server
+   - Run bot alongside the game server
+
+2. **Render + UptimeRobot**
+   - Free tier with keep-alive script
+   - Easy GitHub integration
+   - Requires HTTP server for keep-alive
+
+### Setup on Oracle Cloud
+
+Since you already use Oracle Cloud for the game server:
+
+1. SSH to your Oracle server
+2. Upload bot files to separate directory
+3. Install dependencies: `npm install`
+4. Configure `.env` file
+5. Run with PM2 for 24/7 uptime:
+   ```bash
+   npm install -g pm2
+   pm2 start bot.js --name florr3d-notifications
+   pm2 save
+   pm2 startup
+   ```
 
 ## Troubleshooting
 
-### Bot not responding to commands
-- Check that bot has slash commands permission
-- Verify bot token is correct
-- Ensure guild ID matches your server
+### Bot not receiving events
+- Verify `EXTERNAL_API_TOKEN` is correct
+- Check server URL is accessible
+- Ensure server has `EXTERNAL_BOT_TOKENS` configured
+- Check bot console for API errors
 
-### Giveaway entries not working
-- Verify users are logged in to 3dflorrr.duckdns.org with Discord
-- Check that external API token is valid
-- Ensure server is running and API is accessible
+### Duplicate notifications
+- Check event index tracking is working
+- Verify polling interval is appropriate
+- Check server event system is functioning
 
-### API requests failing
-- Verify `EXTERNAL_BOT_TOKENS` is set in server `.env`
-- Check server URL is correct
-- Ensure CORS is properly configured
+### No notifications appearing
+- Verify Discord bot has send permissions
+- Check channel ID is correct
+- Ensure bot is actually polling (check console)
+- Verify server is generating events
 
 ## Development
 
-The bot automatically fetches game configuration from the server on startup, ensuring it always has the latest rarity and petal types.
+The bot automatically fetches game configuration on startup, ensuring it always has the latest rarity information for proper color matching.
 
-## Security Notes
+## Changes from Previous Version
 
-- Keep your Discord bot token and external API token secure
-- Never commit tokens to version control
-- Use environment variables for sensitive data
-- Restrict API token usage to trusted bots only
+- **Removed**: Giveaway system and slash commands
+- **Removed**: Message sending capabilities
+- **Added**: Event polling mechanism
+- **Added**: Real-time game notification reception
+- **Simplified**: Focused purely on receiving and displaying game events
