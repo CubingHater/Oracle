@@ -47,13 +47,16 @@ async function handleGiveaway(message, params) {
     return;
   }
 
+  // Convert PETAL_TYPES object to array if needed
+  const petalTypeArray = Array.isArray(PETAL_TYPES) ? PETAL_TYPES : Object.keys(PETAL_TYPES);
+
   // Random selection (Common to Ultra only)
   const ultraIndex = RARITIES.findIndex(r => r.name === 'Ultra');
   const maxIndex = ultraIndex >= 0 ? ultraIndex : 6;
   const validRarities = RARITIES.slice(0, maxIndex + 1);
   let selectedRarity = validRarities[Math.floor(Math.random() * validRarities.length)];
   
-  let availablePetals = PETAL_TYPES.filter(p => p !== 'bloodsacrifice');
+  let availablePetals = petalTypeArray.filter(p => p !== 'bloodsacrifice');
   let selectedPetal = availablePetals[Math.floor(Math.random() * availablePetals.length)];
 
   // If Special rarity is selected, only allow blood sacrifice
@@ -158,12 +161,15 @@ async function handleBoostReward(message, params) {
     return;
   }
 
+  // Convert PETAL_TYPES object to array if needed
+  const petalTypeArray = Array.isArray(PETAL_TYPES) ? PETAL_TYPES : Object.keys(PETAL_TYPES);
+
   // Award 1 special blood sacrifice
   await awardPetal(userId, 'bloodsacrifice', 9); // Special = index 9
 
   // Award 3 random ultra petals
   const ultraIndex = RARITIES.findIndex(r => r.name === 'Ultra');
-  const availablePetals = PETAL_TYPES.filter(p => p !== 'bloodsacrifice');
+  const availablePetals = petalTypeArray.filter(p => p !== 'bloodsacrifice');
 
   const awardedPetals = ['bloodsacrifice'];
   for (let i = 0; i < 3; i++) {
@@ -566,7 +572,7 @@ client.on('messageCreate', async (message) => {
 
   if (command === 'giveaway') {
     await handleGiveaway(message, params);
-  } else if (command === 'boost_reward') {
+  } else if (command === 'boost_reward' || command === 'booster_reward') {
     await handleBoostReward(message, params);
   } else if (command === 'refund') {
     await handleRefund(message, params);
