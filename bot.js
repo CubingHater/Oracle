@@ -38,9 +38,26 @@ async function sendApiRequest(endpoint, method = 'GET', body = null) {
 
   try {
     const response = await fetch(`${CONFIG.SERVER_URL}${endpoint}`, options);
-    return await response.json();
+    
+    if (!response.ok) {
+      console.error(`API request failed with status ${response.status}: ${response.statusText}`);
+      return null;
+    }
+    
+    const text = await response.text();
+    if (!text) {
+      console.error('API request failed: Empty response');
+      return null;
+    }
+    
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error('API request failed: Invalid JSON response:', text.substring(0, 200));
+      return null;
+    }
   } catch (error) {
-    console.error('API request failed:', error);
+    console.error('API request failed:', error.message);
     return null;
   }
 }
@@ -59,21 +76,35 @@ async function pollGameEvents() {
   const result = await sendApiRequest(`/api/external/events?since_index=${lastEventIndex}`);
   
   if (result && result.events) {
+    console.log(`Received ${result.events.length} events from server`);
     for (const event of result.events) {
+      console.log(`Processing event:`, event);
       await processGameEvent(event);
     }
     lastEventIndex = result.currentIndex;
+  } else {
+    console.log('No events received or invalid response');
   }
 }
 
 // Process game events and send to Discord
 async function processGameEvent(event) {
-  if (event.e !== 'toast') return; // Only process toast events
+  console.log(`Event type: ${event.e}, text: ${event.text}`);
+  
+  if (event.e !== 'toast') {
+    console.log('Skipping non-toast event');
+    return; // Only process toast events
+  }
   
   const text = event.text;
   const rarity = RARITIES.find(r => text.includes(r.name));
   
-  if (!rarity) return; // Skip if no rarity found
+  if (!rarity) {
+    console.log('No rarity found in event text, skipping');
+    return; // Skip if no rarity found
+  }
+  
+  console.log(`Found rarity: ${rarity.name}, color: ${rarity.color}`);
   
   const color = rarity.color;
   let title = 'Game Event';
@@ -88,6 +119,7 @@ async function processGameEvent(event) {
     title = 'Petal Drop';
   }
   
+  console.log(`Sending notification: ${title}`);
   await sendNotification(title, description, color);
 }
 
