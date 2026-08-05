@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
+import { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } from 'discord.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -8,6 +8,7 @@ const CONFIG = {
   DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
   SERVER_URL: process.env.SERVER_URL || 'https://3dflorrr.duckdns.org',
   NOTIFICATION_CHANNEL_ID: process.env.NOTIFICATION_CHANNEL_ID || '1528927946801152030',
+  GUILD_ID: process.env.GUILD_ID || '1525831377725952150',
   POLL_INTERVAL_MS: 5000 // Poll every 5 seconds
 };
 
@@ -142,11 +143,41 @@ async function sendNotification(title, description, color) {
 }
 
 // Client ready
-client.once('ready', () => {
+client.once('ready', async () => {
   console.log(`Logged in as ${client.user.tag}`);
   
   // Fetch config from server
-  fetchConfig();
+  await fetchConfig();
+  
+  // Register slash commands
+  const commands = [
+    {
+      name: 'status',
+      description: 'Check bot status and connection'
+    },
+    {
+      name: 'test-notification',
+      description: 'Send a test notification'
+    },
+    {
+      name: 'poll',
+      description: 'Manually poll for game events'
+    }
+  ];
+
+  const rest = new REST({ version: '10' }).setToken(CONFIG.DISCORD_BOT_TOKEN);
+
+  try {
+    console.log('Started refreshing application (/) commands.');
+    // Register commands for specific guild (faster than global)
+    await rest.put(
+      Routes.applicationGuildCommands(client.user.id, CONFIG.GUILD_ID),
+      { body: commands }
+    );
+    console.log('Successfully reloaded application (/) commands.');
+  } catch (error) {
+    console.error('Error reloading commands:', error);
+  }
   
   // Start polling for game events
   console.log('Starting to poll for game events...');
@@ -154,6 +185,33 @@ client.once('ready', () => {
   
   // Initial poll
   pollGameEvents();
+});
+
+// Handle slash commands
+client.on('interactionCreate', async (interaction) => {
+  if (!interaction.isChatInputCommand()) return;
+
+  const { commandName } = interaction;
+
+  if (commandName === 'status') {
+    const status = {
+      connected: !!lastEventIndex,
+      eventIndex: lastEventIndex,
+      serverUrl: CONFIG.SERVER_URL,
+      notificationChannel: CONFIG.NOTIFICATION_CHANNEL_ID
+    };
+    
+    await interaction.reply({ 
+      content: `Bot Status:\n- Connected: ${status.connected ? 'Yes' : 'No'}\n- Event Index: ${status.eventIndex}\n- Server: ${status.serverUrl}\n- Channel: ${status.notificationChannel}`,
+      ephemeral: true 
+    });
+  } else if (commandName === 'test-notification') {
+    await sendNotification('Test Notification', 'This is a test message from the bot', '#7eef6d');
+    await interaction.reply({ content: 'Test notification sent', ephemeral: true });
+  } else if (commandName === 'poll') {
+    await pollGameEvents();
+    await interaction.reply({ content: 'Manual poll completed', ephemeral: true });
+  }
 });
 
 // Login

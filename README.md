@@ -7,8 +7,9 @@ An external Discord bot for florr3d that receives game notifications (spawn, kil
 - **Game Notifications**: Receives spawn, kill, and drop notifications from the game server
 - **Real-time Polling**: Polls the game server every 5 seconds for new events
 - **Rarity-based Colors**: Messages use the same colors as in the game
-- **Event Filtering**: Only processes toast events with rarity information
+- **Event Filtering**: Only processes spawn, kill, and drop events (no chat messages)
 - **Event Categorization**: Automatically categorizes events (spawn, kill, drop)
+- **Slash Commands**: Quick access to bot status and manual polling
 
 ## Prerequisites
 
@@ -67,6 +68,19 @@ NOTIFICATION_CHANNEL_ID=1528927946801152030
 ```bash
 npm start
 ```
+
+## Slash Commands
+
+The bot provides the following slash commands:
+
+### `/status`
+Check the bot's current status and connection details.
+
+### `/test-notification`
+Send a test notification to verify the bot is working correctly.
+
+### `/poll`
+Manually trigger a poll for game events (useful for testing).
 
 ## How It Works
 
@@ -127,6 +141,7 @@ curl https://3dflorrr.duckdns.org/api/external/config
 - `DISCORD_BOT_TOKEN`: Your Discord bot token
 - `SERVER_URL`: Game server URL (default: https://3dflorrr.duckdns.org)
 - `NOTIFICATION_CHANNEL_ID`: Discord channel ID for notifications
+- `GUILD_ID`: Discord server ID for slash commands (default: 1525831377725952150)
 
 ### Polling Settings
 
