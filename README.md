@@ -10,6 +10,8 @@ An external Discord bot for florr3d that receives game notifications (spawn, kil
 - **Event Filtering**: Only processes spawn, kill, and drop events (no chat messages)
 - **Event Categorization**: Automatically categorizes events (spawn, kill, drop)
 - **Slash Commands**: Quick access to bot status and manual polling
+- **Prefix Commands**: Admin commands for giveaways, boost rewards, and refunds
+- **Daily Rewards**: Automatic daily air giveaway at 4PM Amsterdam time
 
 ## Prerequisites
 
@@ -75,6 +77,37 @@ NOTIFICATION_CHANNEL_ID=1528927946801152030
 ```bash
 npm start
 ```
+
+## Admin Prefix Commands
+
+The following prefix commands are only available to the admin user (configured in `ADMIN_USER_ID`):
+
+### `!giveaway [duration in minutes]`
+Start a giveaway with specified duration in minutes.
+- Random rarity (Common to Ultra only, or Special with blood sacrifice)
+- Random petal (blood sacrifice only if Special rarity)
+- Users click button to enter
+- Winner must be logged in to the game
+
+### `!boost_reward [user_id]`
+Reward a user for boosting the server.
+- Awards 1 Special blood sacrifice
+- Awards 3 random Ultra petals
+- Sends DM to user with reward details
+- Posts notification in channel
+
+### `!refund [user_id] [rarity] [petalname]`
+Refund a specific petal to a user.
+- Example: `!refund 123456789 Ultra iris`
+- Sends DM confirmation to user
+- User must be logged in to the game
+
+## Daily Rewards
+
+Every day at 4PM Amsterdam time (3PM UTC), the bot automatically:
+- Selects a random user who is logged in with Discord
+- Awards them an Ultra air petal
+- Posts notification in the channel
 
 ## Slash Commands
 
@@ -149,6 +182,7 @@ curl https://3dflorrr.duckdns.org/api/external/config
 - `SERVER_URL`: Game server URL (default: https://3dflorrr.duckdns.org)
 - `NOTIFICATION_CHANNEL_ID`: Discord channel ID for notifications
 - `GUILD_ID`: Discord server ID for slash commands (default: 1525831377725952150)
+- `ADMIN_USER_ID`: Discord user ID for admin prefix commands (default: 1453329316833398819)
 
 ### Polling Settings
 
