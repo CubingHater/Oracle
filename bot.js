@@ -1,4 +1,5 @@
 import { Client, GatewayIntentBits, EmbedBuilder, REST, Routes } from 'discord.js';
+import express from 'express';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -216,3 +217,24 @@ client.on('interactionCreate', async (interaction) => {
 
 // Login
 client.login(CONFIG.DISCORD_BOT_TOKEN);
+
+// HTTP server for UptimeRobot and Render health checks
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+  res.send('Florr3D Discord Bot is running');
+});
+
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    connected: !!lastEventIndex,
+    eventIndex: lastEventIndex,
+    uptime: process.uptime()
+  });
+});
+
+app.listen(PORT, () => {
+  console.log(`HTTP server listening on port ${PORT}`);
+});

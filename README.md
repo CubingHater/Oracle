@@ -22,6 +22,13 @@ An external Discord bot for florr3d that receives game notifications (spawn, kil
 
 No server configuration required. The external API is now publicly accessible for game event polling.
 
+## HTTP Server
+
+The bot includes a simple HTTP server for health checks and UptimeRobot keep-alive:
+
+- **`GET /`**: Returns "Florr3D Discord Bot is running"
+- **`GET /health`**: Returns JSON with bot status and connection details
+
 ## Bot Setup
 
 ### 1. Install Dependencies
