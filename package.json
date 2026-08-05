@@ -1,0 +1,13 @@
+{
+  "name": "florr3d-external-discord-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "External Discord bot for florr3d with giveaway system",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1"
+  }
+}
