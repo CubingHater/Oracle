@@ -312,6 +312,10 @@ async function giveDailyAir() {
 
 // Helper function to send API requests
 async function sendApiRequest(endpoint, method = 'GET', body = null) {
+  const url = `${CONFIG.SERVER_URL}${endpoint}`;
+  console.log(`API Request: ${method} ${url}`);
+  if (body) console.log(`Body:`, body);
+
   const options = {
     method,
     headers: {
@@ -324,27 +328,35 @@ async function sendApiRequest(endpoint, method = 'GET', body = null) {
   }
 
   try {
-    const response = await fetch(`${CONFIG.SERVER_URL}${endpoint}`, options);
-    
+    const response = await fetch(url, options);
+    console.log(`API Response status: ${response.status} ${response.statusText}`);
+
     if (!response.ok) {
       console.error(`API request failed with status ${response.status}: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error(`Error response:`, errorText);
       return null;
     }
-    
+
     const text = await response.text();
+    console.log(`API Response body:`, text.substring(0, 500));
+
     if (!text) {
       console.error('API request failed: Empty response');
       return null;
     }
-    
+
     try {
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      console.log(`API Response parsed:`, parsed);
+      return parsed;
     } catch (parseError) {
       console.error('API request failed: Invalid JSON response:', text.substring(0, 200));
       return null;
     }
   } catch (error) {
     console.error('API request failed:', error.message);
+    console.error('Error stack:', error.stack);
     return null;
   }
 }
