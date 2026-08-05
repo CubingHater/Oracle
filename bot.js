@@ -164,7 +164,7 @@ async function handleBoostReward(message, params) {
   // Award 3 random ultra petals
   const ultraIndex = RARITIES.findIndex(r => r.name === 'Ultra');
   const availablePetals = PETAL_TYPES.filter(p => p !== 'bloodsacrifice');
-  
+
   const awardedPetals = ['bloodsacrifice'];
   for (let i = 0; i < 3; i++) {
     const randomPetal = availablePetals[Math.floor(Math.random() * availablePetals.length)];
@@ -172,9 +172,11 @@ async function handleBoostReward(message, params) {
     awardedPetals.push(randomPetal);
   }
 
+  // Get user for DM and notifications
+  const user = await client.users.fetch(userId);
+
   // Send DM to user
   try {
-    const user = await client.users.fetch(userId);
     await user.send(`Thanks for boosting the server! You gained 1 blood sacrifice, 1 ultra ${awardedPetals[1]}, 1 ultra ${awardedPetals[2]} and 1 ultra ${awardedPetals[3]}.`);
   } catch (error) {
     console.error('Failed to send DM:', error);
@@ -187,7 +189,7 @@ async function handleBoostReward(message, params) {
     `${user.tag} boosted the server!`,
     '#ff00ff'
   );
-  
+
   await sendNotification(
     'Boost Reward',
     `As reward ${user.tag} got ${petalNames}`,
@@ -220,14 +222,24 @@ async function handleRefund(message, params) {
   }
 
   const awarded = await awardPetal(userId, petalName.toLowerCase(), rarityIndex);
-  
+
   if (awarded) {
+    const user = await client.users.fetch(userId);
+
+    // Send DM to user
     try {
-      const user = await client.users.fetch(userId);
       await user.send(`You got 1 ${rarityName} ${petalName} refunded`);
     } catch (error) {
       console.error('Failed to send DM:', error);
     }
+
+    // Send notification in channel
+    await sendNotification(
+      'Refund',
+      `${user.tag} got refunded 1 ${rarityName} ${petalName}`,
+      RARITIES[rarityIndex].color
+    );
+
     await message.reply(`Refunded 1 ${rarityName} ${petalName} to ${userId}`);
   } else {
     await message.reply('Failed to award petal');
@@ -252,8 +264,8 @@ async function awardPetal(discordId, petalType, rarity) {
 function scheduleDailyAir() {
   const now = new Date();
   const targetTime = new Date();
-  targetTime.setUTCHours(15, 0, 0, 0); // 4PM Amsterdam = 3PM UTC
-  
+  targetTime.setUTCHours(16, 0, 0, 0); // 5PM Amsterdam = 4PM UTC (winter) / 3PM UTC (summer)
+
   if (now > targetTime) {
     targetTime.setDate(targetTime.getDate() + 1);
   }
@@ -525,15 +537,20 @@ client.on('interactionCreate', async (interaction) => {
 client.on('messageCreate', async (message) => {
   if (message.author.bot) return;
   if (!message.content.startsWith('!')) return;
-  
-  // Check if user is admin
-  if (message.author.id !== CONFIG.ADMIN_USER_ID) {
-    return;
-  }
 
   const args = message.content.slice(1).split(' ');
   const command = args[0].toLowerCase();
   const params = args.slice(1);
+
+  console.log(`Received command: ${command} from user ${message.author.id}`);
+
+  // Check if user is admin
+  if (message.author.id !== CONFIG.ADMIN_USER_ID) {
+    console.log(`User ${message.author.id} is not admin (${CONFIG.ADMIN_USER_ID}), ignoring command`);
+    return;
+  }
+
+  console.log(`User is admin, executing command: ${command}`);
 
   if (command === 'giveaway') {
     await handleGiveaway(message, params);
@@ -541,6 +558,8 @@ client.on('messageCreate', async (message) => {
     await handleBoostReward(message, params);
   } else if (command === 'refund') {
     await handleRefund(message, params);
+  } else {
+    console.log(`Unknown command: ${command}`);
   }
 });
 
