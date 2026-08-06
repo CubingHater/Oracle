@@ -8,10 +8,18 @@ dotenv.config();
 const CONFIG = {
   DISCORD_BOT_TOKEN: process.env.DISCORD_BOT_TOKEN,
   SERVER_URL: process.env.SERVER_URL || 'https://3dflorrr.duckdns.org',
-  NOTIFICATION_CHANNEL_ID: process.env.NOTIFICATION_CHANNEL_ID || '1528927946801152030',
-  GUILD_ID: process.env.GUILD_ID || '1525831377725952150',
   ADMIN_USER_ID: process.env.ADMIN_USER_ID || '1453329316833398819',
-  POLL_INTERVAL_MS: 5000 // Poll every 5 seconds
+  POLL_INTERVAL_MS: 5000, // Poll every 5 seconds
+  SERVERS: [
+    {
+      GUILD_ID: process.env.GUILD_ID || '1525831377725952150',
+      NOTIFICATION_CHANNEL_ID: '1527013645723369664'
+    },
+    {
+      GUILD_ID: '1534318224945184968',
+      NOTIFICATION_CHANNEL_ID: '1534668810278273174'
+    }
+  ]
 };
 
 // Will be fetched from server
@@ -33,6 +41,9 @@ const client = new Client({
   ]
 });
 
+// Store pending claims for giveaway winners
+const pendingClaims = new Map();
+
 // Helper functions for prefix commands
 async function handleGiveaway(message, params) {
   const duration = parseInt(params[0]);
@@ -41,7 +52,14 @@ async function handleGiveaway(message, params) {
     return;
   }
 
-  const channel = await client.channels.fetch(CONFIG.NOTIFICATION_CHANNEL_ID);
+  // Find the server config for this guild
+  const serverConfig = CONFIG.SERVERS.find(s => s.GUILD_ID === message.guildId);
+  if (!serverConfig) {
+    await message.reply('This server is not configured for giveaways');
+    return;
+  }
+
+  const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
   if (!channel) {
     await message.reply('Notification channel not found');
     return;
@@ -50,10 +68,12 @@ async function handleGiveaway(message, params) {
   // Convert PETAL_TYPES object to array if needed
   const petalTypeArray = Array.isArray(PETAL_TYPES) ? PETAL_TYPES : Object.keys(PETAL_TYPES);
 
-  // Random selection (Common to Ultra only)
+  // Random selection (Mythic to Ultra only)
+  const mythicIndex = RARITIES.findIndex(r => r.name === 'Mythic');
   const ultraIndex = RARITIES.findIndex(r => r.name === 'Ultra');
+  const minIndex = mythicIndex >= 0 ? mythicIndex : 4;
   const maxIndex = ultraIndex >= 0 ? ultraIndex : 6;
-  const validRarities = RARITIES.slice(0, maxIndex + 1);
+  const validRarities = RARITIES.slice(minIndex, maxIndex + 1);
   let selectedRarity = validRarities[Math.floor(Math.random() * validRarities.length)];
   
   let availablePetals = petalTypeArray.filter(p => p !== 'bloodsacrifice');
@@ -101,6 +121,163 @@ async function handleGiveaway(message, params) {
   await message.reply(`Giveaway started for ${duration} minutes`);
 }
 
+async function handleMegaGiveaway(message, params) {
+  const duration = parseInt(params[0]);
+  if (!duration || isNaN(duration)) {
+    await message.reply('Usage: !megagiveaway [duration in minutes]');
+    return;
+  }
+
+  // Find the server config for this guild
+  const serverConfig = CONFIG.SERVERS.find(s => s.GUILD_ID === message.guildId);
+  if (!serverConfig) {
+    await message.reply('This server is not configured for giveaways');
+    return;
+  }
+
+  const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
+  if (!channel) {
+    await message.reply('Notification channel not found');
+    return;
+  }
+
+  // Convert PETAL_TYPES object to array if needed
+  const petalTypeArray = Array.isArray(PETAL_TYPES) ? PETAL_TYPES : Object.keys(PETAL_TYPES);
+
+  // Generate 50 random petals with random rarities (Mythic to Ultra only)
+  const mythicIndex = RARITIES.findIndex(r => r.name === 'Mythic');
+  const ultraIndex = RARITIES.findIndex(r => r.name === 'Ultra');
+  const minIndex = mythicIndex >= 0 ? mythicIndex : 4;
+  const maxIndex = ultraIndex >= 0 ? ultraIndex : 6;
+  const validRarities = RARITIES.slice(minIndex, maxIndex + 1);
+  
+  const giveawayPetals = [];
+  let availablePetals = petalTypeArray.filter(p => p !== 'bloodsacrifice');
+  
+  for (let i = 0; i < 50; i++) {
+    const randomRarity = validRarities[Math.floor(Math.random() * validRarities.length)];
+    const randomPetal = availablePetals[Math.floor(Math.random() * availablePetals.length)];
+    
+    // If Special rarity, force blood sacrifice
+    if (randomRarity.name === 'Special') {
+      giveawayPetals.push({ rarity: 'Special', petal: 'bloodsacrifice', rarityIndex: 9 });
+    } else {
+      giveawayPetals.push({ 
+        rarity: randomRarity.name, 
+        petal: randomPetal, 
+        rarityIndex: RARITIES.findIndex(r => r.name === randomRarity.name) 
+      });
+    }
+  }
+
+  const endTime = Date.now() + (duration * 60 * 1000);
+  const giveawayId = `megagiveaway_${Date.now()}`;
+
+  const embed = new EmbedBuilder()
+    .setTitle('MEGA GIVEAWAY')
+    .setDescription(`🎁 50 Random Petals (Mythic+)\n\nEnds: <t:${Math.floor(endTime / 1000)}:R>\n\nClick the button below to enter!`)
+    .setColor('#ff00ff');
+
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`giveaway_${giveawayId}`)
+        .setLabel('Enter Mega Giveaway')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+  const msg = await channel.send({ embeds: [embed], components: [row] });
+
+  giveaways.set(giveawayId, {
+    message: msg,
+    isMega: true,
+    petals: giveawayPetals,
+    endTime,
+    entries: []
+  });
+
+  setTimeout(() => endGiveaway(giveawayId), duration * 60 * 1000);
+  await message.reply(`Mega giveaway started for ${duration} minutes`);
+}
+
+async function handleTakeaway(message, params) {
+  const duration = parseInt(params[0]);
+  const rarityInput = params[1];
+  const petalInput = params[2];
+
+  if (!duration || isNaN(duration)) {
+    await message.reply('Usage: !takeway [duration in minutes] [rarity] [petal_type]');
+    return;
+  }
+
+  if (!rarityInput || !petalInput) {
+    await message.reply('Usage: !takeway [duration in minutes] [rarity] [petal_type]');
+    return;
+  }
+
+  // Find the server config for this guild
+  const serverConfig = CONFIG.SERVERS.find(s => s.GUILD_ID === message.guildId);
+  if (!serverConfig) {
+    await message.reply('This server is not configured for giveaways');
+    return;
+  }
+
+  const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
+  if (!channel) {
+    await message.reply('Notification channel not found');
+    return;
+  }
+
+  // Convert PETAL_TYPES object to array if needed
+  const petalTypeArray = Array.isArray(PETAL_TYPES) ? PETAL_TYPES : Object.keys(PETAL_TYPES);
+
+  // Find the rarity (case-insensitive)
+  const rarity = RARITIES.find(r => r.name.toLowerCase() === rarityInput.toLowerCase());
+  if (!rarity) {
+    await message.reply(`Invalid rarity. Available rarities: ${RARITIES.map(r => r.name).join(', ')}`);
+    return;
+  }
+
+  // Find the petal (case-insensitive)
+  const petal = petalTypeArray.find(p => p.toLowerCase() === petalInput.toLowerCase());
+  if (!petal) {
+    await message.reply(`Invalid petal type. Available: ${petalTypeArray.join(', ')}`);
+    return;
+  }
+
+  const rarityIndex = RARITIES.findIndex(r => r.name === rarity.name);
+  const endTime = Date.now() + (duration * 60 * 1000);
+  const giveawayId = `takeaway_${Date.now()}`;
+
+  const embed = new EmbedBuilder()
+    .setTitle('🚨 TAKEAWAY')
+    .setDescription(`⚠️ Winner loses: ${rarity.name} ${petal}\n\nEnds: <t:${Math.floor(endTime / 1000)}:R>\n\nClick the button below to enter!`)
+    .setColor('#ff0000');
+
+  const row = new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId(`giveaway_${giveawayId}`)
+        .setLabel('Enter Takeaway')
+        .setStyle(ButtonStyle.Danger)
+    );
+
+  const msg = await channel.send({ embeds: [embed], components: [row] });
+
+  giveaways.set(giveawayId, {
+    message: msg,
+    isTakeaway: true,
+    rarity: rarity.name,
+    petal: petal,
+    rarityIndex,
+    endTime,
+    entries: []
+  });
+
+  setTimeout(() => endGiveaway(giveawayId), duration * 60 * 1000);
+  await message.reply(`Takeaway started for ${duration} minutes - winner loses ${rarity.name} ${petal}`);
+}
+
 async function endGiveaway(giveawayId) {
   const giveaway = giveaways.get(giveawayId);
   if (!giveaway) return;
@@ -119,32 +296,80 @@ async function endGiveaway(giveawayId) {
   const winnerIndex = Math.floor(Math.random() * giveaway.entries.length);
   const winner = giveaway.entries[winnerIndex];
 
-  const isVerified = await verifyDiscordUser(winner.userId);
-  
-  if (!isVerified) {
+  // Verify winner's Discord ID
+  const verifyResponse = await sendApiRequest(`/api/external/verify-discord?discord_id=${winner.discordId}`);
+  if (!verifyResponse.verified) {
     await giveaway.message.edit({
-      content: 'Giveaway ended - Winner not verified',
+      content: `Giveaway ended - Winner ${winner.username} is not verified`,
       embeds: [giveaway.message.embeds[0]],
       components: []
     });
     return;
   }
 
-  const awarded = await awardPetal(winner.userId, giveaway.petal, giveaway.rarityIndex);
-  
-  if (awarded) {
-    const user = await client.users.fetch(winner.userId);
-    await giveaway.message.edit({
-      content: `Giveaway ended - Winner: ${user.tag}`,
-      embeds: [giveaway.message.embeds[0]],
-      components: []
-    });
+  // Store giveaway info for claiming
+  pendingClaims.set(giveawayId, {
+    discordId: winner.discordId,
+    username: winner.username,
+    giveaway: giveaway,
+    expiresAt: Date.now() + (24 * 60 * 60 * 1000) // 24 hours to claim
+  });
 
-    await sendNotification(
-      'Giveaway Winner',
-      `${user.tag} won a ${giveaway.rarity} ${giveaway.petal}`,
-      RARITIES.find(r => r.name === giveaway.rarity).color
-    );
+  if (giveaway.isTakeaway) {
+    // Takeaway - show claim button (loser must click to lose petal)
+    const claimRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`claim_${giveawayId}`)
+          .setLabel('Lose Your Petal')
+          .setStyle(ButtonStyle.Danger)
+      );
+
+    await giveaway.message.edit({
+      content: `🚨 Loser: <@${winner.discordId}> (${winner.username})\n\nLoses: ${giveaway.rarity} ${giveaway.petal}\n\nClick the button below to accept your loss!`,
+      embeds: [giveaway.message.embeds[0]],
+      components: [claimRow]
+    });
+  } else if (giveaway.isMega) {
+    // Mega giveaway - show claim button
+    const claimRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`claim_${giveawayId}`)
+          .setLabel('Claim Your 50 Petals')
+          .setStyle(ButtonStyle.Success)
+      );
+
+    await giveaway.message.edit({
+      content: `🎉 Winner: <@${winner.discordId}> (${winner.username})\n\nClick the button below to claim your 50 random petals!`,
+      embeds: [giveaway.message.embeds[0]],
+      components: [claimRow]
+    });
+  } else {
+    // Regular giveaway - show claim button
+    const claimRow = new ActionRowBuilder()
+      .addComponents(
+        new ButtonBuilder()
+          .setCustomId(`claim_${giveawayId}`)
+          .setLabel('Claim Your Petal')
+          .setStyle(ButtonStyle.Success)
+      );
+
+    await giveaway.message.edit({
+      content: `🎉 Winner: <@${winner.discordId}> (${winner.username})\n\nPrize: ${giveaway.rarity} ${giveaway.petal}\n\nClick the button below to claim your petal!`,
+      embeds: [giveaway.message.embeds[0]],
+      components: [claimRow]
+    });
+  }
+}
+
+async function verifyDiscordUser(discordId) {
+  try {
+    const response = await sendApiRequest(`/api/external/verify-discord?discord_id=${discordId}`);
+    return response.verified;
+  } catch (error) {
+    console.error('Error verifying Discord user:', error);
+    return false;
   }
 }
 
@@ -252,6 +477,30 @@ async function handleRefund(message, params) {
   }
 }
 
+async function handleKill(message, params) {
+  const userId = params[0];
+  if (!userId) {
+    await message.reply('Usage: !kill [user_id]');
+    return;
+  }
+
+  const isVerified = await verifyDiscordUser(userId);
+  if (!isVerified) {
+    await message.reply('User is not logged in to the game');
+    return;
+  }
+
+  const killResponse = await sendApiRequest('/api/external/kill-player', 'POST', {
+    discord_id: userId
+  });
+
+  if (killResponse.success) {
+    await message.reply(`Successfully killed player ${userId}`);
+  } else {
+    await message.reply(`Failed to kill player: ${killResponse.error || 'Player may not be online'}`);
+  }
+}
+
 async function verifyDiscordUser(discordId) {
   const result = await sendApiRequest(`/api/external/verify-discord?discord_id=${discordId}`);
   return result?.verified || false;
@@ -264,6 +513,15 @@ async function awardPetal(discordId, petalType, rarity) {
     rarity: rarity
   });
   return result?.success || false;
+}
+
+async function removePetal(discordId, petalType, rarity) {
+  const result = await sendApiRequest('/api/external/remove-petal', 'POST', {
+    discord_id: discordId,
+    petal_type: petalType,
+    rarity: rarity
+  });
+  return result?.success ? { success: true } : { success: false, error: result?.error || 'Failed to remove petal' };
 }
 
 // Daily air scheduler
@@ -450,16 +708,19 @@ async function processGameEvent(event) {
 // Send embed notification to Discord
 async function sendNotification(title, description, color) {
   try {
-    const channel = await client.channels.fetch(CONFIG.NOTIFICATION_CHANNEL_ID);
-    if (!channel) return;
+    // Send to all configured notification channels
+    for (const serverConfig of CONFIG.SERVERS) {
+      const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
+      if (!channel) continue;
 
-    const embed = new EmbedBuilder()
-      .setTitle(title)
-      .setDescription(description)
-      .setColor(parseInt(color.replace('#', ''), 16));
+      const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description)
+        .setColor(parseInt(color.replace('#', ''), 16));
 
-    await channel.send({ embeds: [embed] });
-    console.log(`Sent notification: ${title}`);
+      await channel.send({ embeds: [embed] });
+      console.log(`Sent notification: ${title}`);
+    }
   } catch (error) {
     console.error('Failed to send notification:', error);
   }
@@ -494,22 +755,20 @@ client.once('ready', async () => {
 
   try {
     console.log('Started refreshing application (/) commands.');
-    console.log(`Registering commands for guild: ${CONFIG.GUILD_ID}`);
-    
-    // Check if guild ID is valid
-    if (!CONFIG.GUILD_ID || CONFIG.GUILD_ID === '1525831377725952150') {
-      console.warn('Using default guild ID - make sure this is correct for your server');
+
+    // Register commands for all configured guilds
+    for (const serverConfig of CONFIG.SERVERS) {
+      console.log(`Registering commands for guild: ${serverConfig.GUILD_ID}`);
+
+      // Register commands for specific guild (faster than global)
+      await rest.put(
+        Routes.applicationGuildCommands(client.user.id, serverConfig.GUILD_ID),
+        { body: commands }
+      );
+      console.log(`Successfully reloaded commands for guild: ${serverConfig.GUILD_ID}`);
     }
-    
-    // Register commands for specific guild (faster than global)
-    await rest.put(
-      Routes.applicationGuildCommands(client.user.id, CONFIG.GUILD_ID),
-      { body: commands }
-    );
-    console.log('Successfully reloaded application (/) commands.');
   } catch (error) {
     console.error('Error reloading commands:', error);
-    console.error('Guild ID:', CONFIG.GUILD_ID);
     console.error('Application ID:', client.user.id);
   }
   
@@ -535,12 +794,12 @@ client.on('interactionCreate', async (interaction) => {
       connected: !!lastEventIndex,
       eventIndex: lastEventIndex,
       serverUrl: CONFIG.SERVER_URL,
-      notificationChannel: CONFIG.NOTIFICATION_CHANNEL_ID
+      servers: CONFIG.SERVERS.map(s => `Guild: ${s.GUILD_ID}, Channel: ${s.NOTIFICATION_CHANNEL_ID}`).join('\n')
     };
-    
-    await interaction.reply({ 
-      content: `Bot Status:\n- Connected: ${status.connected ? 'Yes' : 'No'}\n- Event Index: ${status.eventIndex}\n- Server: ${status.serverUrl}\n- Channel: ${status.notificationChannel}`,
-      ephemeral: true 
+
+    await interaction.reply({
+      content: `Bot Status:\n- Connected: ${status.connected ? 'Yes' : 'No'}\n- Event Index: ${status.eventIndex}\n- Server: ${status.serverUrl}\n- Servers:\n${status.servers}`,
+      ephemeral: true
     });
   } else if (commandName === 'test-notification') {
     await sendNotification('Test Notification', 'This is a test message from the bot', '#7eef6d');
@@ -572,6 +831,12 @@ client.on('messageCreate', async (message) => {
 
   if (command === 'giveaway') {
     await handleGiveaway(message, params);
+  } else if (command === 'megagiveaway') {
+    await handleMegaGiveaway(message, params);
+  } else if (command === 'takeway') {
+    await handleTakeaway(message, params);
+  } else if (command === 'kill') {
+    await handleKill(message, params);
   } else if (command === 'boost_reward' || command === 'booster_reward') {
     await handleBoostReward(message, params);
   } else if (command === 'refund') {
@@ -586,6 +851,110 @@ client.on('interactionCreate', async (interaction) => {
   if (!interaction.isButton()) return;
 
   const customId = interaction.customId;
+
+  // Handle claim buttons
+  if (customId.startsWith('claim_')) {
+    const giveawayId = customId.replace('claim_', '');
+    const claim = pendingClaims.get(giveawayId);
+
+    if (!claim) {
+      await interaction.reply({ content: 'This claim has expired or is invalid', ephemeral: true });
+      return;
+    }
+
+    if (claim.discordId !== interaction.user.id) {
+      await interaction.reply({ content: 'You are not the winner of this giveaway', ephemeral: true });
+      return;
+    }
+
+    if (Date.now() > claim.expiresAt) {
+      pendingClaims.delete(giveawayId);
+      await interaction.reply({ content: 'This claim has expired (24 hours)', ephemeral: true });
+      return;
+    }
+
+    // Verify user
+    const verifyResponse = await sendApiRequest(`/api/external/verify-discord?discord_id=${interaction.user.id}`);
+    if (!verifyResponse.verified) {
+      await interaction.reply({ content: 'You must be logged in to 3dflorrr.duckdns.org with Discord to claim this prize', ephemeral: true });
+      return;
+    }
+
+    // Award or remove petals
+    if (claim.giveaway.isTakeaway) {
+      // Remove petal (takeaway)
+      const removeResponse = await removePetal(interaction.user.id, claim.giveaway.petal, claim.giveaway.rarityIndex);
+
+      pendingClaims.delete(giveawayId);
+
+      if (removeResponse.success) {
+        await interaction.reply({
+          content: `💀 You lost your ${claim.giveaway.rarity} ${claim.giveaway.petal}! Better luck next time.`,
+          ephemeral: true
+        });
+
+        // Update message to show claimed
+        await claim.giveaway.message.edit({
+          content: `🚨 Takeaway completed by <@${interaction.user.id}> (${claim.username}) - lost ${claim.giveaway.rarity} ${claim.giveaway.petal}`,
+          components: []
+        });
+      } else {
+        await interaction.reply({ content: removeResponse.error || 'Failed to remove petal. You may not have this petal.', ephemeral: true });
+      }
+    } else if (claim.giveaway.isMega) {
+      // Award all 50 petals
+      let successCount = 0;
+      for (const petal of claim.giveaway.petals) {
+        const awardResponse = await sendApiRequest('/api/external/award-petal', 'POST', {
+          discord_id: interaction.user.id,
+          petal_type: petal.petal,
+          rarity: petal.rarityIndex
+        });
+        if (awardResponse.success) {
+          successCount++;
+        }
+      }
+
+      pendingClaims.delete(giveawayId);
+      await interaction.reply({
+        content: `🎉 Successfully claimed ${successCount}/50 petals! Make sure you're logged in to 3dflorrr.duckdns.org to see them in your inventory.`,
+        ephemeral: true
+      });
+
+      // Update message to show claimed
+      await claim.giveaway.message.edit({
+        content: `🎉 Giveaway claimed by <@${interaction.user.id}> (${claim.username})`,
+        components: []
+      });
+    } else {
+      // Award single petal
+      const awardResponse = await sendApiRequest('/api/external/award-petal', 'POST', {
+        discord_id: interaction.user.id,
+        petal_type: claim.giveaway.petal,
+        rarity: claim.giveaway.rarityIndex
+      });
+
+      pendingClaims.delete(giveawayId);
+
+      if (awardResponse.success) {
+        await interaction.reply({
+          content: `🎉 Successfully claimed your ${claim.giveaway.rarity} ${claim.giveaway.petal}! Make sure you're logged in to 3dflorrr.duckdns.org to see it in your inventory.`,
+          ephemeral: true
+        });
+
+        // Update message to show claimed
+        await claim.giveaway.message.edit({
+          content: `🎉 Giveaway claimed by <@${interaction.user.id}> (${claim.username})`,
+          components: []
+        });
+      } else {
+        await interaction.reply({ content: 'Failed to claim petal. Please try again later.', ephemeral: true });
+      }
+    }
+    return;
+  }
+
+  // Handle giveaway entry buttons
   if (!customId.startsWith('giveaway_')) return;
 
   const giveawayId = customId.replace('giveaway_', '');
@@ -611,14 +980,23 @@ client.on('interactionCreate', async (interaction) => {
     return;
   }
 
-  giveaway.entries.push({ userId: interaction.user.id });
+  giveaway.entries.push({ userId: interaction.user.id, discordId: interaction.user.id, username: interaction.user.username });
   await interaction.reply({ content: 'You have entered the giveaway', ephemeral: true });
 
   // Update entry count
-  const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
-    .setDescription(`Prize: ${giveaway.rarity} ${giveaway.petal}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
-
-  await giveaway.message.edit({ embeds: [updatedEmbed] });
+  if (giveaway.isTakeaway) {
+    const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
+      .setDescription(`⚠️ Winner loses: ${giveaway.rarity} ${giveaway.petal}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
+    await giveaway.message.edit({ embeds: [updatedEmbed] });
+  } else if (giveaway.isMega) {
+    const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
+      .setDescription(`🎁 50 Random Petals (Mythic+)\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
+    await giveaway.message.edit({ embeds: [updatedEmbed] });
+  } else {
+    const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
+      .setDescription(`Prize: ${giveaway.rarity} ${giveaway.petal}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
+    await giveaway.message.edit({ embeds: [updatedEmbed] });
+  }
 });
 
 // Login
@@ -644,3 +1022,14 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`HTTP server listening on port ${PORT}`);
 });
+
+// Cleanup expired claims every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [giveawayId, claim] of pendingClaims.entries()) {
+    if (now > claim.expiresAt) {
+      pendingClaims.delete(giveawayId);
+      console.log(`Cleaned up expired claim: ${giveawayId}`);
+    }
+  }
+}, 60 * 60 * 1000); // Every hour
