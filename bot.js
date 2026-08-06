@@ -51,7 +51,7 @@ async function handleGiveaway(message, params) {
   // Find the server config for this guild
   const serverConfig = CONFIG.SERVERS.find(s => s.GUILD_ID === message.guildId);
   if (!serverConfig) {
-    await message.reply('This server is not configured for giveaways');
+    await message.reply(`This server (Guild ID: ${message.guildId}) is not configured for giveaways. Expected: ${CONFIG.SERVERS.map(s => s.GUILD_ID).join(', ')}`);
     return;
   }
 
@@ -127,7 +127,7 @@ async function handleMegaGiveaway(message, params) {
   // Find the server config for this guild
   const serverConfig = CONFIG.SERVERS.find(s => s.GUILD_ID === message.guildId);
   if (!serverConfig) {
-    await message.reply('This server is not configured for giveaways');
+    await message.reply(`This server (Guild ID: ${message.guildId}) is not configured for giveaways. Expected: ${CONFIG.SERVERS.map(s => s.GUILD_ID).join(', ')}`);
     return;
   }
 
@@ -210,7 +210,7 @@ async function handleTakeaway(message, params) {
   // Find the server config for this guild
   const serverConfig = CONFIG.SERVERS.find(s => s.GUILD_ID === message.guildId);
   if (!serverConfig) {
-    await message.reply('This server is not configured for giveaways');
+    await message.reply(`This server (Guild ID: ${message.guildId}) is not configured for giveaways. Expected: ${CONFIG.SERVERS.map(s => s.GUILD_ID).join(', ')}`);
     return;
   }
 
