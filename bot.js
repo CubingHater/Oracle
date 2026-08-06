@@ -13,8 +13,7 @@ const CONFIG = {
   SERVERS: [
     {
       GUILD_ID: '1528927946801152030',
-      NOTIFICATION_CHANNEL_ID: '1534574835823546448',
-      GIVEAWAY_CHANNEL_ID: '1534574835823546448'
+      NOTIFICATION_CHANNEL_ID: '1534574835823546448'
     }
   ]
 };
@@ -56,9 +55,9 @@ async function handleGiveaway(message, params) {
     return;
   }
 
-  const channel = await client.channels.fetch(serverConfig.GIVEAWAY_CHANNEL_ID);
+  const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
   if (!channel) {
-    await message.reply('Giveaway channel not found');
+    await message.reply('Notification channel not found');
     return;
   }
 
@@ -132,9 +131,9 @@ async function handleMegaGiveaway(message, params) {
     return;
   }
 
-  const channel = await client.channels.fetch(serverConfig.GIVEAWAY_CHANNEL_ID);
+  const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
   if (!channel) {
-    await message.reply('Giveaway channel not found');
+    await message.reply('Notification channel not found');
     return;
   }
 
@@ -215,9 +214,9 @@ async function handleTakeaway(message, params) {
     return;
   }
 
-  const channel = await client.channels.fetch(serverConfig.GIVEAWAY_CHANNEL_ID);
+  const channel = await client.channels.fetch(serverConfig.NOTIFICATION_CHANNEL_ID);
   if (!channel) {
-    await message.reply('Giveaway channel not found');
+    await message.reply('Notification channel not found');
     return;
   }
 
