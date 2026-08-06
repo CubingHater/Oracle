@@ -501,11 +501,6 @@ async function handleKill(message, params) {
   }
 }
 
-async function verifyDiscordUser(discordId) {
-  const result = await sendApiRequest(`/api/external/verify-discord?discord_id=${discordId}`);
-  return result?.verified || false;
-}
-
 async function awardPetal(discordId, petalType, rarity) {
   const result = await sendApiRequest('/api/external/award-petal', 'POST', {
     discord_id: discordId,
