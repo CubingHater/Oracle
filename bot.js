@@ -12,12 +12,8 @@ const CONFIG = {
   POLL_INTERVAL_MS: 5000, // Poll every 5 seconds
   SERVERS: [
     {
-      GUILD_ID: process.env.GUILD_ID || '1525831377725952150',
-      NOTIFICATION_CHANNEL_ID: '1527013645723369664'
-    },
-    {
-      GUILD_ID: '1534318224945184968',
-      NOTIFICATION_CHANNEL_ID: '1534668810278273174'
+      GUILD_ID: '1528927946801152030',
+      NOTIFICATION_CHANNEL_ID: '1534574835823546448'
     }
   ]
 };
@@ -144,28 +140,24 @@ async function handleMegaGiveaway(message, params) {
   // Convert PETAL_TYPES object to array if needed
   const petalTypeArray = Array.isArray(PETAL_TYPES) ? PETAL_TYPES : Object.keys(PETAL_TYPES);
 
-  // Generate 50 random petals with random rarities (Mythic to Ultra only)
-  const mythicIndex = RARITIES.findIndex(r => r.name === 'Mythic');
-  const ultraIndex = RARITIES.findIndex(r => r.name === 'Ultra');
-  const minIndex = mythicIndex >= 0 ? mythicIndex : 4;
-  const maxIndex = ultraIndex >= 0 ? ultraIndex : 6;
-  const validRarities = RARITIES.slice(minIndex, maxIndex + 1);
-  
+  // Generate 50 random petals with all rarities EXCEPT Super, Eternal, and Special
+  // Blood sacrifice (Special) has 5% chance per petal
   const giveawayPetals = [];
-  let availablePetals = petalTypeArray.filter(p => p !== 'bloodsacrifice');
-  
+  const normalRarities = RARITIES.filter(r => !['Super', 'Eternal', 'Special'].includes(r.name));
+
   for (let i = 0; i < 50; i++) {
-    const randomRarity = validRarities[Math.floor(Math.random() * validRarities.length)];
-    const randomPetal = availablePetals[Math.floor(Math.random() * availablePetals.length)];
-    
-    // If Special rarity, force blood sacrifice
-    if (randomRarity.name === 'Special') {
+    // 5% chance for blood sacrifice
+    if (Math.random() < 0.05) {
       giveawayPetals.push({ rarity: 'Special', petal: 'bloodsacrifice', rarityIndex: 9 });
     } else {
-      giveawayPetals.push({ 
-        rarity: randomRarity.name, 
-        petal: randomPetal, 
-        rarityIndex: RARITIES.findIndex(r => r.name === randomRarity.name) 
+      // 95% chance for normal rarities (Common to Ultra)
+      const randomRarity = normalRarities[Math.floor(Math.random() * normalRarities.length)];
+      const randomPetal = petalTypeArray[Math.floor(Math.random() * petalTypeArray.length)];
+
+      giveawayPetals.push({
+        rarity: randomRarity.name,
+        petal: randomPetal,
+        rarityIndex: RARITIES.findIndex(r => r.name === randomRarity.name)
       });
     }
   }
@@ -175,7 +167,7 @@ async function handleMegaGiveaway(message, params) {
 
   const embed = new EmbedBuilder()
     .setTitle('MEGA GIVEAWAY')
-    .setDescription(`🎁 50 Random Petals (Mythic+)\n\nEnds: <t:${Math.floor(endTime / 1000)}:R>\n\nClick the button below to enter!`)
+    .setDescription(`50 Random Petals (Common to Ultra + Special)\n\n**Prizes:**\n${giveawayPetals.map(p => `${p.rarity} ${p.petal}`).join('\n')}\n\nEnds: <t:${Math.floor(endTime / 1000)}:R>\n\nClick the button below to enter!`)
     .setColor('#ff00ff');
 
   const row = new ActionRowBuilder()
@@ -250,8 +242,8 @@ async function handleTakeaway(message, params) {
   const giveawayId = `takeaway_${Date.now()}`;
 
   const embed = new EmbedBuilder()
-    .setTitle('🚨 TAKEAWAY')
-    .setDescription(`⚠️ Winner loses: ${rarity.name} ${petal}\n\nEnds: <t:${Math.floor(endTime / 1000)}:R>\n\nClick the button below to enter!`)
+    .setTitle('TAKEAWAY')
+    .setDescription(`WARNING: Winner loses: ${rarity.name} ${petal}\n\nEnds: <t:${Math.floor(endTime / 1000)}:R>\n\nClick the button below to enter!`)
     .setColor('#ff0000');
 
   const row = new ActionRowBuilder()
@@ -326,7 +318,7 @@ async function endGiveaway(giveawayId) {
       );
 
     await giveaway.message.edit({
-      content: `🚨 Loser: <@${winner.discordId}> (${winner.username})\n\nLoses: ${giveaway.rarity} ${giveaway.petal}\n\nClick the button below to accept your loss!`,
+      content: `Loser: <@${winner.discordId}> (${winner.username})\n\nLoses: ${giveaway.rarity} ${giveaway.petal}\n\nClick the button below to accept your loss!`,
       embeds: [giveaway.message.embeds[0]],
       components: [claimRow]
     });
@@ -341,7 +333,7 @@ async function endGiveaway(giveawayId) {
       );
 
     await giveaway.message.edit({
-      content: `🎉 Winner: <@${winner.discordId}> (${winner.username})\n\nClick the button below to claim your 50 random petals!`,
+      content: `Winner: <@${winner.discordId}> (${winner.username})\n\nClick the button below to claim your 50 petals!`,
       embeds: [giveaway.message.embeds[0]],
       components: [claimRow]
     });
@@ -356,7 +348,7 @@ async function endGiveaway(giveawayId) {
       );
 
     await giveaway.message.edit({
-      content: `🎉 Winner: <@${winner.discordId}> (${winner.username})\n\nPrize: ${giveaway.rarity} ${giveaway.petal}\n\nClick the button below to claim your petal!`,
+      content: `Winner: <@${winner.discordId}> (${winner.username})\n\nPrize: ${giveaway.rarity} ${giveaway.petal}\n\nClick the button below to claim your petal!`,
       embeds: [giveaway.message.embeds[0]],
       components: [claimRow]
     });
@@ -884,13 +876,13 @@ client.on('interactionCreate', async (interaction) => {
 
       if (removeResponse.success) {
         await interaction.reply({
-          content: `💀 You lost your ${claim.giveaway.rarity} ${claim.giveaway.petal}! Better luck next time.`,
+          content: `You lost your ${claim.giveaway.rarity} ${claim.giveaway.petal}! Better luck next time.`,
           ephemeral: true
         });
 
         // Update message to show claimed
         await claim.giveaway.message.edit({
-          content: `🚨 Takeaway completed by <@${interaction.user.id}> (${claim.username}) - lost ${claim.giveaway.rarity} ${claim.giveaway.petal}`,
+          content: `Takeaway completed by <@${interaction.user.id}> (${claim.username}) - lost ${claim.giveaway.rarity} ${claim.giveaway.petal}`,
           components: []
         });
       } else {
@@ -912,13 +904,13 @@ client.on('interactionCreate', async (interaction) => {
 
       pendingClaims.delete(giveawayId);
       await interaction.reply({
-        content: `🎉 Successfully claimed ${successCount}/50 petals! Make sure you're logged in to 3dflorrr.duckdns.org to see them in your inventory.`,
+        content: `Successfully claimed ${successCount}/50 petals! Make sure you're logged in to 3dflorrr.duckdns.org to see them in your inventory.`,
         ephemeral: true
       });
 
       // Update message to show claimed
       await claim.giveaway.message.edit({
-        content: `🎉 Giveaway claimed by <@${interaction.user.id}> (${claim.username})`,
+        content: `Giveaway claimed by <@${interaction.user.id}> (${claim.username})`,
         components: []
       });
     } else {
@@ -933,13 +925,13 @@ client.on('interactionCreate', async (interaction) => {
 
       if (awardResponse.success) {
         await interaction.reply({
-          content: `🎉 Successfully claimed your ${claim.giveaway.rarity} ${claim.giveaway.petal}! Make sure you're logged in to 3dflorrr.duckdns.org to see it in your inventory.`,
+          content: `Successfully claimed your ${claim.giveaway.rarity} ${claim.giveaway.petal}! Make sure you're logged in to 3dflorrr.duckdns.org to see it in your inventory.`,
           ephemeral: true
         });
 
         // Update message to show claimed
         await claim.giveaway.message.edit({
-          content: `🎉 Giveaway claimed by <@${interaction.user.id}> (${claim.username})`,
+          content: `Giveaway claimed by <@${interaction.user.id}> (${claim.username})`,
           components: []
         });
       } else {
@@ -981,11 +973,13 @@ client.on('interactionCreate', async (interaction) => {
   // Update entry count
   if (giveaway.isTakeaway) {
     const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
-      .setDescription(`⚠️ Winner loses: ${giveaway.rarity} ${giveaway.petal}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
+      .setDescription(`WARNING: Winner loses: ${giveaway.rarity} ${giveaway.petal}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
     await giveaway.message.edit({ embeds: [updatedEmbed] });
   } else if (giveaway.isMega) {
+    // Update just the title to show entry count, keep the description with petal list
     const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
-      .setDescription(`🎁 50 Random Petals (Mythic+)\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
+      .setTitle(`MEGA GIVEAWAY (${giveaway.entries.length} entries)`)
+      .setDescription(`50 Random Petals (Common to Ultra + Special)\n\n**Prizes:**\n${giveaway.petals.map(p => `${p.rarity} ${p.petal}`).join('\n')}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nClick the button below to enter!`);
     await giveaway.message.edit({ embeds: [updatedEmbed] });
   } else {
     const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
