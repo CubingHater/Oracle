@@ -36,12 +36,17 @@ const processedEventHashes = new Set();
 // Giveaway storage
 const giveaways = new Map();
 
+// Test notification message IDs for skull emoji reactions
+const testNotificationMessages = new Set();
+
 // Discord client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent
+    GatewayIntentBits.MessageContent,
+    GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.GuildModeration
   ]
 });
 
@@ -797,8 +802,38 @@ client.on('interactionCreate', async (interaction) => {
       ephemeral: true
     });
   } else if (commandName === 'test-notification') {
-    await sendNotification('Test Notification', 'This is a test message from the bot', '#7eef6d');
-    await interaction.reply({ content: 'Test notification sent', ephemeral: true });
+    // Mute the user for 14 days
+    const muteDuration = 14 * 24 * 60 * 60 * 1000; // 14 days in milliseconds
+    try {
+      await interaction.member.timeout(muteDuration, 'Used test notification - auto-muted for 14 days');
+    } catch (error) {
+      console.error('Failed to mute user:', error);
+    }
+
+    // Send the test notification with special message
+    const channel = await client.channels.fetch(interaction.channelId);
+    if (channel) {
+      const embed = new EmbedBuilder()
+        .setTitle('Test Notification')
+        .setDescription(`Because <@${interaction.user.id}> used this test message he will get a nice 14 day mute! If you want to get this punishment too react with a skull emoji to this message!`)
+        .setColor('#7eef6d');
+
+      const msg = await channel.send({ embeds: [embed] });
+
+      // Store this message ID as a test notification
+      testNotificationMessages.add(msg.id);
+
+      // React with skull emoji after a short delay
+      setTimeout(async () => {
+        try {
+          await msg.react('💀');
+        } catch (error) {
+          console.error('Failed to react with skull emoji:', error);
+        }
+      }, 1000);
+    }
+
+    await interaction.reply({ content: 'Test notification sent and you have been muted for 14 days!', ephemeral: true });
   } else if (commandName === 'poll') {
     await pollGameEvents();
     await interaction.reply({ content: 'Manual poll completed', ephemeral: true });
@@ -993,6 +1028,38 @@ client.on('interactionCreate', async (interaction) => {
     const updatedEmbed = EmbedBuilder.from(giveaway.message.embeds[0])
       .setDescription(`Prize: ${giveaway.rarity} ${giveaway.petal}\n\nEnds: <t:${Math.floor(giveaway.endTime / 1000)}:R>\n\nEntries: ${giveaway.entries.length}\n\nClick the button below to enter!`);
     await giveaway.message.edit({ embeds: [updatedEmbed] });
+  }
+});
+
+// Handle message reactions for skull emoji (mute users)
+client.on('messageReactionAdd', async (reaction, user) => {
+  // Ignore bot reactions
+  if (user.bot) return;
+
+  // Only handle skull emoji reactions
+  if (reaction.emoji.name !== '💀') return;
+
+  // Get the message
+  const message = await reaction.message.fetch();
+
+  // Check if this is a test notification message
+  if (!testNotificationMessages.has(message.id)) return;
+
+  // Mute the user for 14 days
+  const muteDuration = 14 * 24 * 60 * 60 * 1000; // 14 days in milliseconds
+  try {
+    const member = await message.guild.members.fetch(user.id);
+    await member.timeout(muteDuration, 'Reacted to test notification with skull emoji - auto-muted for 14 days');
+
+    // Send a test notification as punishment
+    const embed = new EmbedBuilder()
+      .setTitle('💀')
+      .setDescription(`<@${user.id}> HAHAHAHAHHA LMAO LOL GET MUTED YOU FOOL`)
+      .setColor('#ff0000');
+
+    await message.channel.send({ embeds: [embed] });
+  } catch (error) {
+    console.error('Failed to mute user or send punishment message:', error);
   }
 });
 
